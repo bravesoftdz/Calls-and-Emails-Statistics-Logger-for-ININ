@@ -175,7 +175,9 @@ begin
   lineNumber := 0;
   Form1.EmailWindowControlCaptionsMemo.Clear;
   EnumChildWindows(ParentHandle, @EnumProc, Integer(Form1.EmailWindowControlCaptionsMemo.Lines));
-  for i := 0 to Form1.EmailWindowControlCaptionsMemo.lines.count - 1
+
+  //for i := 0 to Form1.EmailWindowControlCaptionsMemo.lines.count - 1
+  for i := Form1.EmailWindowControlCaptionsMemo.lines.count - 1 downto 0
     do
       if Pos('Caption: To:', Form1.EmailWindowControlCaptionsMemo.Lines[i]) > 0
         then
@@ -189,6 +191,10 @@ begin
       result := true
     else
       result := false;
+
+  if Form1.EmailWindowControlCaptionsMemo.lines.count = 0
+    then
+      result := true;
 end;
 
 function searchForEmailWindows: HWND;
