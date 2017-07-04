@@ -170,11 +170,21 @@ end;
 
 function isEmailWindowFW(ParentHandle: HWND): bool;
 var
-  i, lineNumber: integer;
+  sentinel, i, lineNumber: integer;
 begin
+  sentinel := 0;
   lineNumber := 0;
-  Form1.EmailWindowControlCaptionsMemo.Clear;
-  EnumChildWindows(ParentHandle, @EnumProc, Integer(Form1.EmailWindowControlCaptionsMemo.Lines));
+
+  Repeat
+    begin
+      Form1.EmailWindowControlCaptionsMemo.Clear;
+      EnumChildWindows(ParentHandle, @EnumProc, Integer(Form1.EmailWindowControlCaptionsMemo.Lines));
+      if sentinel = 3
+        then
+          Break;
+      Inc(sentinel);
+    end;
+  Until Form1.EmailWindowControlCaptionsMemo.lines.count > 0;
 
   //for i := 0 to Form1.EmailWindowControlCaptionsMemo.lines.count - 1
   for i := Form1.EmailWindowControlCaptionsMemo.lines.count - 1 downto 0
