@@ -1,18 +1,16 @@
 {
  Name             : Unit1.pas - Calls&Emails Statistics Logger for ININ
  Author           : Clement Campagna
- Version          : 1.5
+ Version          : 1.9
+ Date:            : 06 August 2017
  Copyright        : Under MIT (X11) License - Copyright 2017 Clement Campagna
  Description      : Calls&Emails Statistics Logger for ININ (CESL) is a simple
-                    statistics logger (i.e. software counter) for calls answered
-                    and emails processed (i.e. disconnected) while using ININ
-                    (i.e. Interaction Client: .NET Edition).
- Requirements     : CESL only works with Interaction Client: .NET Edition
-                    For the calls answered counter to work, in ININ, please enable
-                    'Open new window for incoming calls' under 'Options >
-                    Configuration > Calls'
+                    statistics logger (i.e. software counter) for calls and emails
+                    connected while using ININ (i.e. Interaction Client: .NET Edition)
+ Requirements     : CESL currently works with Interaction Client: .NET Edition
+                    on the Microsoft Windows platform.
  Usage            : Compile with Embarcadero Delphi 10.1 Berlin Update 2
- Tested in        : Microsoft Windows 8 & 10 running ININ Version 4.0 SU6
+ Tested on        : Microsoft Windows 8 & 10 x64 running ININ Version 4.0 SU6
  Author's Website : https://clementcampagna.net
 
  Licensed under the MIT License, Version X11 (the "License"); you may not use this file except
@@ -42,33 +40,47 @@ type
     StartButton: TButton;
     StopButton: TButton;
     ResetButton: TButton;
-    CallsAnsweredLabel: TLabel;
-    EmailsDisconnectedLabel: TLabel;
-    CallsAnsweredCounterLabel: TLabel;
-    EmailsDisconnectedCounterLabel: TLabel;
+    CallsConnectedLabel: TLabel;
+    EmailsConnectedLabel: TLabel;
+    CallsConnectedCounterLabel: TLabel;
+    EmailsConnectedCounterLabel: TLabel;
     KeepThisWindowOnTopCheckBox: TCheckBox;
-    CheckOnTimer: TTimer;
+    CheckOnEmailsTimer: TTimer;
     CallsManualAdjustmentPosLabel: TLabel;
     CallsManualAdjustmentNegLabel: TLabel;
     EmailsManualAdjustmentPosLabel: TLabel;
     EmailsManualAdjustmentNegLabel: TLabel;
-    ManualAdjustmentLabel: TLabel;
     AboutCESLCheckBox: TCheckBox;
-    EmailWindowControlCaptionsMemo: TMemo;
+    LogControlMemo: TMemo;
+    TimeCallsConnectedLabel: TLabel;
+    TimeEmailsConnectedLabel: TLabel;
+    TimeCallsConnectedDateTimeLabel: TLabel;
+    TimeEmailsConnectedDateTimeLabel: TLabel;
+    AutoSaveTimer: TTimer;
+    LogOutputLabel: TLabel;
+    CheckOnCallsTimer: TTimer;
+    ResetCallsConnectedCounterLabel: TLabel;
+    ResetEmailsConnectedCounterLabel: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure ResetButtonClick(Sender: TObject);
     procedure StartButtonClick(Sender: TObject);
     procedure StopButtonClick(Sender: TObject);
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure KeepThisWindowOnTopCheckBoxClick(Sender: TObject);
-    procedure CheckOnTimerTimer(Sender: TObject);
+    procedure CheckOnEmailsTimerTimer(Sender: TObject);
     procedure CallsManualAdjustmentPosLabelClick(Sender: TObject);
     procedure CallsManualAdjustmentNegLabelClick(Sender: TObject);
     procedure EmailsManualAdjustmentPosLabelClick(Sender: TObject);
     procedure EmailsManualAdjustmentNegLabelClick(Sender: TObject);
-    procedure FormDblClick(Sender: TObject);
     procedure AboutCESLCheckBoxMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure AutoSaveTimerTimer(Sender: TObject);
+    procedure CheckOnCallsTimerTimer(Sender: TObject);
+    procedure ResetCallsConnectedCounterLabelClick(Sender: TObject);
+    procedure ResetEmailsConnectedCounterLabelClick(Sender: TObject);
+    procedure CallsConnectedLabelClick(Sender: TObject);
+    procedure SIPEngineININLogFilePicker(today: boolean);
+    procedure FormDblClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -88,14 +100,15 @@ type
     function  IndexOf(const s: string): integer;
     property  Count: integer read GetCount;
     property  Items[index: integer]: string read GetItem write SetItem; default;
-  end;
+end;
 
 var
   Form1: TForm1;
-  CallsAnsweredCounterInt: Integer;
-  EmailsDisconnectedCounterInt: Integer;
-  CallshWndStrListRecord: TStringListRecord;
+  CallsConnectedCounterInt: Integer;
+  AdditionalCallsConnectedCounterInt: Integer;
+  EmailsConnectedCounterInt: Integer;
   EmailshWndStrListRecord: TStringListRecord;
+  SIPEngineLogFullPath: string;
 
 implementation
 
@@ -141,19 +154,100 @@ begin
   end;
 end;
 
-function refreshCounterLabels: bool;
+function refreshCounterLabels(param: integer): bool;
 begin
-  Form1.CallsAnsweredCounterLabel.Caption := CallsAnsweredCounterInt.ToString;
-  Form1.EmailsDisconnectedCounterLabel.Caption := EmailsDisconnectedCounterInt.ToString;
+  case param of
+    1:  begin
+          Form1.TimeEmailsConnectedDateTimeLabel.Caption := FormatDateTime('dd/mm/yyyy, hh:nn:ss AM/PM', now);
+          Form1.EmailsConnectedCounterLabel.Caption := EmailsConnectedCounterInt.ToString;
+        end;
+    2:  begin
+          Form1.TimeCallsConnectedDateTimeLabel.Caption := FormatDateTime('dd/mm/yyyy, hh:nn:ss AM/PM', now);
+          Form1.CallsConnectedCounterLabel.Caption := CallsConnectedCounterInt.ToString;
+        end;
+  else
+    begin
+      Form1.TimeEmailsConnectedDateTimeLabel.Caption := FormatDateTime('dd/mm/yyyy, hh:nn:ss AM/PM', now);
+      Form1.TimeCallsConnectedDateTimeLabel.Caption := FormatDateTime('dd/mm/yyyy, hh:nn:ss AM/PM', now);
+      Form1.EmailsConnectedCounterLabel.Caption := EmailsConnectedCounterInt.ToString;
+      Form1.CallsConnectedCounterLabel.Caption := CallsConnectedCounterInt.ToString;
+    end;
+  end;
+
+  Form1.AutoSaveTimer.Enabled := true;
+
   Result := true;
 end;
 
-function resetCounterIntegers: bool;
+function resetCounterIntegers(param: integer): bool;
 begin
-  CallsAnsweredCounterInt := 0;
-  EmailsDisconnectedCounterInt := 0;
-  refreshCounterLabels();
+  case param of
+    1:  begin
+          EmailsConnectedCounterInt := 0;
+          refreshCounterLabels(1);
+          Form1.TimeEmailsConnectedDateTimeLabel.Caption := 'No connected emails logged yet';
+          //
+          EmailshWndStrListRecord.Clear;
+        end;
+    2:  begin
+          CallsConnectedCounterInt := 0;
+          AdditionalCallsConnectedCounterInt := 0;
+          refreshCounterLabels(2);
+          //
+          Form1.TimeCallsConnectedDateTimeLabel.Caption := 'No connected calls logged yet';
+        end;
+    else
+      begin
+        CallsConnectedCounterInt := 0;
+        AdditionalCallsConnectedCounterInt := 0;
+        EmailsConnectedCounterInt := 0;
+        refreshCounterLabels(0);
+        //
+        Form1.TimeCallsConnectedDateTimeLabel.Caption := 'No connected calls logged yet';
+        Form1.TimeEmailsConnectedDateTimeLabel.Caption := 'No connected emails logged yet';
+        //
+        EmailshWndStrListRecord.Clear;
+      end;
+  end;
+
   Result := true;
+end;
+
+procedure LoadPreviousStatsValuesFromFile(AFilename: String);
+var
+  Lst: TStringList;
+begin
+  Lst:= TStringList.Create;
+  try
+    Lst.LoadFromFile(AFilename);
+    Form1.CallsConnectedCounterLabel.Caption:= Lst.Values['CallsConnectedCounterLabel'];
+    Form1.EmailsConnectedCounterLabel.Caption:= Lst.Values['EmailsConnectedCounterLabel'];
+    Form1.TimeCallsConnectedDateTimeLabel.Caption:= Lst.Values['TimeCallsConnectedDateTimeLabel'];
+    Form1.TimeEmailsConnectedDateTimeLabel.Caption:= Lst.Values['TimeEmailsConnectedDateTimeLabel'];
+    AdditionalCallsConnectedCounterInt := StrToInt(Lst.Values['AdditionalCallsConnectedCounterInt']);
+    //
+    CallsConnectedCounterInt := StrToInt(Form1.CallsConnectedCounterLabel.Caption);
+    EmailsConnectedCounterInt := StrToInt(Form1.EmailsConnectedCounterLabel.Caption);
+  finally
+    Lst.Free;
+  end;
+end;
+
+procedure SaveCurrentStatsValuesToFile(AFilename: String);
+var
+  Lst: TStringList;
+begin
+  Lst:= TStringList.Create;
+  try
+    Lst.Values['CallsConnectedCounterLabel']:= Form1.CallsConnectedCounterLabel.Caption;
+    Lst.Values['EmailsConnectedCounterLabel']:= Form1.EmailsConnectedCounterLabel.Caption;
+    Lst.Values['TimeCallsConnectedDateTimeLabel']:= Form1.TimeCallsConnectedDateTimeLabel.Caption;
+    Lst.Values['TimeEmailsConnectedDateTimeLabel']:= Form1.TimeEmailsConnectedDateTimeLabel.Caption;
+    Lst.Values['AdditionalCallsConnectedCounterInt']:= IntToStr(AdditionalCallsConnectedCounterInt);
+    Lst.SaveToFile(AFilename);
+  finally
+    Lst.Free;
+  end;
 end;
 
 function EnumProc(wnd: HWND; Lines: TStrings): BOOL; stdcall;
@@ -163,9 +257,7 @@ begin
   Result := True;
   GetClassName(wnd, buf, SizeOf(buf) - 1);
   SendMessage(wnd, WM_GETTEXT, 256, Integer(@Caption));
-  Lines.Add(Format('ClassName: %s, Caption: %s', [buf, Caption]));
-//  Lines.Add(Format('ID: %d, ClassName: %s, Caption: %s',
-//           [GetDlgCtrlID(wnd), buf, Caption]));
+  Lines.Add(Format('%d, ClassName: %s, Caption: %s',[GetDlgCtrlID(wnd), buf, Caption]));
 end;
 
 function isEmailWindowFW(ParentHandle: HWND): bool;
@@ -177,37 +269,37 @@ begin
 
   Repeat
     begin
-      Form1.EmailWindowControlCaptionsMemo.Clear;
-      EnumChildWindows(ParentHandle, @EnumProc, Integer(Form1.EmailWindowControlCaptionsMemo.Lines));
+      Form1.LogControlMemo.Clear;
+      sleep(250);
+      EnumChildWindows(ParentHandle, @EnumProc, Integer(Form1.LogControlMemo.Lines));
       if sentinel = 3
         then
           Break;
       Inc(sentinel);
     end;
-  Until Form1.EmailWindowControlCaptionsMemo.lines.count > 0;
+  Until Form1.LogControlMemo.lines.count > 0;
 
-  //for i := 0 to Form1.EmailWindowControlCaptionsMemo.lines.count - 1
-  for i := Form1.EmailWindowControlCaptionsMemo.lines.count - 1 downto 0
+  for i := Form1.LogControlMemo.lines.count - 1 downto 0
     do
-      if Pos('Caption: To:', Form1.EmailWindowControlCaptionsMemo.Lines[i]) > 0
+      if Pos('Caption: To:', Form1.LogControlMemo.Lines[i]) > 0
         then
           begin
             lineNumber := i;
             Break;
           end;
 
-  if Pos('BUTTON', Form1.EmailWindowControlCaptionsMemo.lines[lineNumber] ) > 0
+  if Pos('BUTTON', Form1.LogControlMemo.lines[lineNumber] ) > 0
     then
       result := true
     else
       result := false;
 
-  if Form1.EmailWindowControlCaptionsMemo.lines.count = 0
+  if Form1.LogControlMemo.lines.count = 0
     then
       result := true;
 end;
 
-function searchForEmailWindows: HWND;
+function searchForEmailWindows: bool;
 var
   sClassWindowAlreadyChecked: bool;
   partialTitle: string;
@@ -243,88 +335,310 @@ begin
                       if isEmailWindowFW(hWndTemp) = false
                         then
                           begin
-                            SetWindowText(hWndTemp, '[CESL Counted] ' + sTitleTemp);
-                            Inc(EmailsDisconnectedCounterInt);
-                            refreshCounterLabels;
+                            Inc(EmailsConnectedCounterInt);
+                            refreshCounterLabels(1);
                           end;
                     end;
               end;
       hWndTemp := GetWindow(hWndTemp, GW_HWNDNEXT);
     end;
-  result := hWndTemp;
+  result := true;
 end;
 
-function searchForCallWindows: HWND;
+procedure FindFiles(FilesList: TStringList; StartDir, FileMask: string);
 var
-  sClassWindowAlreadyChecked: bool;
-  partialTitle: string;
-  hWndTemp: hWnd;
-  iLenText: Integer;
-  currentClassName, cTitletemp: array [0..255] of Char;
-  currentStrClassName, sTitleTemp: string;
+  SR: TSearchRec;
+//  DirList: TStringList;
+  IsFound: Boolean;
+//  i: integer;
 begin
-  partialTitle := ' - Properties';
-  hWndTemp := FindWindow(nil, nil);
-  while hWndTemp <> 0 do
-    begin
-      iLenText := GetWindowText(hWndTemp, cTitletemp, 255);
-      sTitleTemp := cTitletemp;
-      sTitleTemp := copy(sTitleTemp, 1, iLenText);
-      GetClassName(hWndTemp, currentClassName, 255);
-      currentStrClassName := currentClassName;
-      sClassWindowAlreadyChecked := false;
+  if StartDir[length(StartDir)] <> '\'
+    then
+      StartDir := StartDir + '\';
 
-      if pos(partialTitle, sTitleTemp) <> 0
-        then
-          if currentStrClassName.Contains('HwndWrapper[InteractionClient.exe;UI')
+  { Build a list of the files in directory StartDir
+     (not the directories!)                         }
+
+  IsFound := FindFirst(StartDir+FileMask, faAnyFile-faDirectory, SR) = 0;
+  while IsFound
+    do
+      begin
+        FilesList.Add(StartDir + SR.Name);
+        IsFound := FindNext(SR) = 0;
+      end;
+  FindClose(SR);
+
+  // Build a list of subdirectories
+//  DirList := TStringList.Create;
+//  IsFound := FindFirst(StartDir+'*.*', faAnyFile, SR) = 0;
+//  while IsFound
+//    do
+//      begin
+//        if ((SR.Attr and faDirectory) <> 0) and (SR.Name[1] <> '.')
+//          then
+//            DirList.Add(StartDir + SR.Name);
+//        IsFound := FindNext(SR) = 0;
+//      end;
+//  FindClose(SR);
+
+  // Scan the list of subdirectories
+//  for i := 0 to DirList.Count - 1
+//    do
+//      FindFiles(FilesList, DirList[i], FileMask);
+
+//  DirList.Free;
+end;
+
+function CountOccurences(const SubText: string; const Text: string): Integer;
+begin
+  if (SubText = '') OR (Text = '') OR (Pos(SubText, Text) = 0)
+    then
+      Result := 0
+    else
+      Result := (Length(Text) - Length(StringReplace(Text, SubText, '', [rfReplaceAll]))) div Length(subtext);
+end;
+
+function RetrieveCallStatisticsFromSIPLogFile: boolean;
+var
+  FilesList: TStringList;
+  //
+  i: Integer;
+  s: AnsiString;
+  Stream: TFileStream;
+  //
+  tempCallsConnectedCounterInt: integer;
+begin
+  if SIPEngineLogFullPath.IsEmpty
+    then
+      begin
+        Form1.CheckOnCallsTimer.Enabled := false;
+        FilesList := TStringList.Create;
+          try
+            FindFiles(FilesList, GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now), 'SIPEngine*.ininlog');
+            if FilesList.Count > 1
+              then
+                begin
+                  ShowMessage('CESL has detected that at least 2 different SIPEngine ININ Log files exist for today''s date.'
+                  +#13+
+                  'To ensure accurate couting of all connected calls, please click OK then select the most recent SIPEngine ININ Log file in the next window.'
+                  +#13+#13+
+                  'Please note that you can also choose which SIPEngine ININ Log file to use at anytime by clicking on ''Calls connected:'' in CESL.');
+                  Form1.SIPEngineININLogFilePicker(true);
+                end
+            else
+              begin
+                if StrToInt(Form1.CallsConnectedCounterLabel.Caption) > 0
+                  then
+                    begin
+                      if MessageDlg('Reset call statistics (currently ' + Form1.CallsConnectedCounterLabel.Caption + ') before starting logging new calls?', mtconfirmation, [mbYes, mbNo], 0) = mrYes
+                        then
+                          resetCounterIntegers(2)
+                        else
+                          AdditionalCallsConnectedCounterInt := CallsConnectedCounterInt;
+                    end
+                  else
+                    AdditionalCallsConnectedCounterInt := CallsConnectedCounterInt;
+                SIPEngineLogFullPath := GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now)+'\SIPEngine.ininlog';
+              end;
+          finally
+            FilesList.Free;
+          end;
+        //
+        if StrToInt(Form1.EmailsConnectedCounterLabel.Caption) > 0
+          then
+            begin
+              if MessageDlg('Reset email statistics (currently ' + Form1.EmailsConnectedCounterLabel.Caption + ') before starting logging new emails?', mtconfirmation, [mbYes, mbNo], 0) = mrYes
+                then
+                  resetCounterIntegers(1)
+            end;
+        //
+        Form1.CheckOnCallsTimer.Enabled := true;
+      end;
+  //
+  if FileExists(SIPEngineLogFullPath)
+    then
+      begin
+        Stream := TFileStream.Create(SIPEngineLogFullPath, fmOpenRead or fmShareDenyNone);
+        try
+          SetLength(s, Stream.Size);
+          if Stream.Size > 0
+            then
+              Stream.ReadBuffer(s[1], Stream.Size);
+          finally
+            Stream.Free;
+        end;
+        for i := 1 to Length(s)
+          do
+            if s[i] = #0
+              then
+                s[i] := ' ';
+          Form1.LogControlMemo.Text := String(AnsiString(s));
+          //
+          tempCallsConnectedCounterInt := CountOccurences('WWW-Authenticate: Digest realm=', Form1.LogControlMemo.Text) - CountOccurences('WWW-Authenticate: Digest realm="data', Form1.LogControlMemo.Text);
+          if tempCallsConnectedCounterInt + AdditionalCallsConnectedCounterInt <> CallsConnectedCounterInt
             then
               begin
-                if CallshWndStrListRecord.IndexOf(currentStrClassName) > -1
-                  then
-                    sClassWindowAlreadyChecked := true;
-
-                if sClassWindowAlreadyChecked = false then
-                  begin
-                    CallshWndStrListRecord.Add(currentStrClassName);
-                    SetWindowText(hWndTemp, '[CESL Counted] ' + sTitleTemp);
-                    Inc(CallsAnsweredCounterInt);
-                    refreshCounterLabels;
-                  end;
+                CallsConnectedCounterInt := tempCallsConnectedCounterInt + AdditionalCallsConnectedCounterInt;
+                refreshCounterLabels(2);
               end;
-      hWndTemp := GetWindow(hWndTemp, GW_HWNDNEXT);
-  end;
-  result := hWndTemp;
+      end;
+  Result := true;
+end;
+
+procedure TForm1.SIPEngineININLogFilePicker(today: boolean);
+var
+  openDialog : topendialog;
+begin
+  openDialog := TOpenDialog.Create(self);
+
+  if today = true
+    then
+      openDialog.InitialDir := GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now)
+    else
+      openDialog.InitialDir := GetEnvironmentVariable('TEMP')+'\inin_tracing\';
+
+  openDialog.Options := [ofFileMustExist];
+  openDialog.Filter := 'SIPEngine ININ Log file|SIPEngine*.ininlog';
+  openDialog.FilterIndex := 1;
+
+  if openDialog.Execute
+    then
+      begin
+        if StrToInt(Form1.CallsConnectedCounterLabel.Caption) > 0
+          then
+            begin
+              if MessageDlg('Reset call statistics (currently ' + Form1.CallsConnectedCounterLabel.Caption + ') before starting logging new calls?', mtconfirmation, [mbYes, mbNo], 0) = mrYes
+                then
+                  resetCounterIntegers(2)
+                else
+                  AdditionalCallsConnectedCounterInt := CallsConnectedCounterInt;
+            end;
+        SIPEngineLogFullPath := openDialog.FileName;
+        RetrieveCallStatisticsFromSIPLogFile;
+      end;
+
+  openDialog.Free;
+end;
+
+procedure TForm1.CheckOnCallsTimerTimer(Sender: TObject);
+begin
+  CheckOnCallsTimer.Enabled := false; //pause timer
+  Form1.CheckOnCallsTimer.Enabled := RetrieveCallStatisticsFromSIPLogFile; //restart timer
+end;
+
+procedure TForm1.CheckOnEmailsTimerTimer(Sender: TObject);
+begin
+  CheckOnEmailsTimer.Enabled := false; //pause timer
+  Form1.CheckOnEmailsTimer.Enabled := searchForEmailWindows; //restart timer
+end;
+
+procedure TForm1.AutoSaveTimerTimer(Sender: TObject);
+begin
+  AutoSaveTimer.Enabled := false;
+  //
+  SaveCurrentStatsValuesToFile(GetEnvironmentVariable('TEMP') + '\CESLv19.ini');
+end;
+
+procedure TForm1.CallsConnectedLabelClick(Sender: TObject);
+begin
+  SIPEngineININLogFilePicker(false);
+end;
+
+procedure TForm1.CallsManualAdjustmentPosLabelClick(Sender: TObject);
+begin
+  Inc(AdditionalCallsConnectedCounterInt);
+  Inc(CallsConnectedCounterInt);
+  refreshCounterLabels(2);
+end;
+
+procedure TForm1.CallsManualAdjustmentNegLabelClick(Sender: TObject);
+begin
+  if (CallsConnectedCounterInt > 0) = true
+    then
+      begin
+        Dec(AdditionalCallsConnectedCounterInt);
+        Dec(CallsConnectedCounterInt);
+        refreshCounterLabels(2);
+      end;
+end;
+
+procedure TForm1.EmailsManualAdjustmentPosLabelClick(Sender: TObject);
+begin
+  Inc(EmailsConnectedCounterInt);
+  refreshCounterLabels(1);
+end;
+
+procedure TForm1.EmailsManualAdjustmentNegLabelClick(Sender: TObject);
+begin
+  if (EmailsConnectedCounterInt > 0) = true
+    then
+      begin
+        Dec(EmailsConnectedCounterInt);
+        refreshCounterLabels(1);
+      end;
+end;
+
+procedure TForm1.ResetCallsConnectedCounterLabelClick(Sender: TObject);
+begin
+  if MessageDlg('Reset call statistics?', mtconfirmation, [mbYes, mbNo], 0) = mrYes
+    then
+      resetCounterIntegers(2);
+  //
+  if StopButton.Enabled = true
+    then
+      RetrieveCallStatisticsFromSIPLogFile;
+end;
+
+procedure TForm1.ResetEmailsConnectedCounterLabelClick(Sender: TObject);
+begin
+  if MessageDlg('Reset email statistics?', mtconfirmation, [mbYes, mbNo], 0) = mrYes
+    then
+      resetCounterIntegers(1);
 end;
 
 procedure TForm1.StartButtonClick(Sender: TObject);
 begin
   StartButton.Enabled := false;
   StopButton.Enabled := true;
-  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.5 for ININ: ON';
+  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9 for ININ: ON';
   //
-  CheckOnTimer.Enabled := true;
+  CallsConnectedCounterLabel.Enabled := true;
+  TimeCallsConnectedDateTimeLabel.Enabled := true;
+  EmailsConnectedCounterLabel.Enabled := true;
+  TimeEmailsConnectedDateTimeLabel.Enabled := true;
+  //
+  CheckOnEmailsTimer.Enabled := true;
+  CheckOnCallsTimer.Enabled := true;
+  //
+  RetrieveCallStatisticsFromSIPLogFile;
 end;
 
 procedure TForm1.StopButtonClick(Sender: TObject);
 begin
-  CheckOnTimer.Enabled := false;
+  CheckOnEmailsTimer.Enabled := false;
+  CheckOnCallsTimer.Enabled := false;
+  //
+  CallsConnectedCounterLabel.Enabled := false;
+  TimeCallsConnectedDateTimeLabel.Enabled := false;
+  EmailsConnectedCounterLabel.Enabled := false;
+  TimeEmailsConnectedDateTimeLabel.Enabled := false;
+  //
+  SIPEngineLogFullPath := '';
   //
   StopButton.Enabled := false;
   StartButton.Enabled := true;
-  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.5 for ININ: OFF';
-end;
-
-procedure TForm1.CheckOnTimerTimer(Sender: TObject);
-begin
-  searchForEmailWindows;
-  searchForCallWindows;
+  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9 for ININ: OFF';
 end;
 
 procedure TForm1.ResetButtonClick(Sender: TObject);
 begin
   if MessageDlg('Reset all statistics?', mtconfirmation, [mbYes, mbNo], 0) = mrYes
     then
-      resetCounterIntegers;
+      resetCounterIntegers(0);
+  //
+  if StopButton.Enabled = true
+    then
+      RetrieveCallStatisticsFromSIPLogFile;
   //
   ControlsGroupBox.SetFocus;
 end;
@@ -342,65 +656,33 @@ procedure TForm1.AboutCESLCheckBoxMouseUp(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: Integer);
 begin
   ControlsGroupBox.SetFocus;
-  ShowMessage('Calls&&Emails Statistics Logger v1.5 for ININ'
+ShowMessage('Calls&&Emails Statistics Logger v1.9 for ININ'
               + #13+#13
-              + 'By Clement Campagna, June/July 2017'
+              + 'By Clement Campagna, June/August 2017'
               + #13
               + 'https://clementcampagna.net'
               + #13+#13
               + 'Changelog:'
               + #13
-              + 'v1.5 (04/07/2017): First public version'
+              + 'v1.9 (06/08/2017)        : Bug fixes and performance improvements.'
+              + #13
+              + 'v1.8 (27/07/2017)        : Updated call detection to support more ININ configs.'
+              + #13
+              + 'v1.7 (13/07/2017)        : Reverted v1.6 changes due to unsatisfactory results.'
+              + #13
+              + 'v1.6 (08/07/2017 )       : Entirely new call detection algorithm (beta).'
+              + #13
+              + 'v1.5 (04/07/2017)        : First public version.'
               +#13
-              + 'v1.0 - 1.4 (24-30/06/2017): Private beta versions'
-              + #13+#13
-              + 'Please note: this program has been tested compatible'
-              + #13
-              + 'with Interaction Client: .NET Edition Version 4.0 SU6'
-              + #13+#13
-              + 'For the calls answered counter to work:'
-              + #13
-              + '- In ININ, enable ''Open new window for incoming calls'''
-              + #13
-              + '   under ''Options > Configuration > Calls''.');
+              + 'v1.4 RC (30/06/2017)  : Release Candidate version.'
+              +#13
+              + 'v1.0 to 1.3 (June 2017): Private beta versions.');
   AboutCESLCheckBox.State := cbGrayed;
-end;
-
-procedure TForm1.CallsManualAdjustmentNegLabelClick(Sender: TObject);
-begin
-  if (CallsAnsweredCounterInt > 0) = true
-    then
-      begin
-        Dec(CallsAnsweredCounterInt);
-        refreshCounterLabels;
-      end;
-end;
-
-procedure TForm1.CallsManualAdjustmentPosLabelClick(Sender: TObject);
-begin
-  Inc(CallsAnsweredCounterInt);
-  refreshCounterLabels;
-end;
-
-procedure TForm1.EmailsManualAdjustmentNegLabelClick(Sender: TObject);
-begin
-  if (EmailsDisconnectedCounterInt > 0) = true
-    then
-      begin
-        Dec(EmailsDisconnectedCounterInt);
-        refreshCounterLabels;
-      end;
-end;
-
-procedure TForm1.EmailsManualAdjustmentPosLabelClick(Sender: TObject);
-begin
-  Inc(EmailsDisconnectedCounterInt);
-  refreshCounterLabels;
 end;
 
 procedure TForm1.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
-  if MessageDlg('Are you sure you want to exit?', mtconfirmation, [mbYes, mbNo], 0) = mrYes
+  if MessageDlg('Close CESL?', mtconfirmation, [mbYes, mbNo], 0) = mrYes
     then
       CanClose := true
     else
@@ -409,16 +691,25 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
-  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.5 for ININ: OFF';
+  CallsConnectedCounterInt := 0;
+  AdditionalCallsConnectedCounterInt := 0;
+  EmailsConnectedCounterInt := 0;
+  SIPEngineLogFullPath := '';
+  //
+  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9 for ININ: OFF';
+  //
+  if FileExists(GetEnvironmentVariable('TEMP') + '\CESLv19.ini')
+    then
+      LoadPreviousStatsValuesFromFile(GetEnvironmentVariable('TEMP') + '\CESLv19.ini');
 end;
 
 procedure TForm1.FormDblClick(Sender: TObject);
 begin
-//  if Form1.Height = 190
+//    if Form1.Height = 191
 //    then
-//      Form1.Height := 575
+//      Form1.Height := 573
 //    else
-//      Form1.Height := 190;
+//      Form1.Height := 191;
 end;
 
 end.

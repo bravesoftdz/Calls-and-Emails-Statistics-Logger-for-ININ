@@ -1,6 +1,6 @@
 #Calls&Emails Statistics Logger for ININ
 
-Calls&Emails Statistics Logger for ININ (CESL) is a simple statistics logger (i.e. software counter) for calls answered and emails processed (i.e. disconnected) while using ININ (i.e. Interaction Client: .NET Edition).
+Calls&Emails Statistics Logger for ININ (CESL) is a simple statistics logger (i.e. software counter) for calls and emails connected while using ININ (i.e. Interaction Client: .NET Edition).
 
 #Pull Requests
 
