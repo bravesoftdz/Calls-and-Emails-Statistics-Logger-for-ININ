@@ -3,7 +3,7 @@ object Form1: TForm1
   Top = 0
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
-  Caption = 'Calls&Emails Statistics Logger v1.9 for ININ'
+  Caption = 'Calls&Emails Statistics Logger v1.9.1 for ININ'
   ClientHeight = 156
   ClientWidth = 436
   Color = clBtnFace
@@ -237,9 +237,9 @@ object Form1: TForm1
       OnClick = ResetButtonClick
     end
     object KeepThisWindowOnTopCheckBox: TCheckBox
-      Left = 270
+      Left = 269
       Top = 19
-      Width = 144
+      Width = 154
       Height = 17
       Caption = 'Keep this window on top'
       TabOrder = 3
@@ -248,11 +248,11 @@ object Form1: TForm1
     object AboutCESLCheckBox: TCheckBox
       Left = 269
       Top = 42
-      Width = 145
+      Width = 154
       Height = 17
       TabStop = False
       AllowGrayed = True
-      Caption = 'About CESL v1.9 for ININ'
+      Caption = 'About CESL v1.9.1 for ININ'
       State = cbGrayed
       TabOrder = 4
       OnMouseUp = AboutCESLCheckBoxMouseUp

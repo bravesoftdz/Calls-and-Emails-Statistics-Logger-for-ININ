@@ -12,7 +12,7 @@ begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   TStyleManager.TrySetStyle('Sky');
-  Application.Title := 'Calls&Emails Statistics Logger v1.9 for ININ';
+  Application.Title := 'Calls&Emails Statistics Logger v1.9.1 for ININ';
   Application.CreateForm(TForm1, Form1);
   Application.Run;
 end.
