@@ -3,7 +3,7 @@ object Form1: TForm1
   Top = 0
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
-  Caption = 'Calls&Emails Statistics Logger v1.9.1 for ININ'
+  Caption = 'Calls&Emails Statistics Logger v1.9.2 for ININ'
   ClientHeight = 156
   ClientWidth = 436
   Color = clBtnFace
@@ -46,14 +46,9 @@ object Form1: TForm1
       Top = 16
       Width = 79
       Height = 13
-      Cursor = crHandPoint
-      Hint = 
-        'Click to choose wich SIPEngine ININ Log file to use (default: to' +
-        'day'#39's one)'
       Caption = 'Calls connected:'
       ParentShowHint = False
-      ShowHint = True
-      OnClick = CallsConnectedLabelClick
+      ShowHint = False
     end
     object EmailsConnectedLabel: TLabel
       Left = 8
@@ -252,7 +247,7 @@ object Form1: TForm1
       Height = 17
       TabStop = False
       AllowGrayed = True
-      Caption = 'About CESL v1.9.1 for ININ'
+      Caption = 'About CESL v1.9.2 for ININ'
       State = cbGrayed
       TabOrder = 4
       OnMouseUp = AboutCESLCheckBoxMouseUp

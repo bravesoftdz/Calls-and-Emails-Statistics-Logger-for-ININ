@@ -1,8 +1,8 @@
 {
  Name             : Unit1.pas - Calls&Emails Statistics Logger for ININ
  Author           : Clement Campagna
- Version          : 1.9.1
- Date:            : 08 August 2017
+ Version          : 1.9.2
+ Date:            : 13 August 2017
  Copyright        : Under MIT (X11) License - Copyright 2017 Clement Campagna
  Description      : Calls&Emails Statistics Logger for ININ (CESL) is a simple
                     statistics logger (i.e. software counter) for calls and emails
@@ -78,8 +78,7 @@ type
     procedure CheckOnCallsTimerTimer(Sender: TObject);
     procedure ResetCallsConnectedCounterLabelClick(Sender: TObject);
     procedure ResetEmailsConnectedCounterLabelClick(Sender: TObject);
-    procedure CallsConnectedLabelClick(Sender: TObject);
-    procedure SIPEngineININLogFilePicker(today: boolean);
+    procedure SIPEngineININLogFilePicker();
     procedure FormDblClick(Sender: TObject);
   private
     { Private declarations }
@@ -108,7 +107,9 @@ var
   AdditionalCallsConnectedCounterInt: Integer;
   EmailsConnectedCounterInt: Integer;
   EmailshWndStrListRecord: TStringListRecord;
-  SIPEngineLogFullPath: string;
+  SIPEngineLogFullPathCurrent: string;
+  SIPEngineLogFullPathFromCESLSettings: string;
+  SIPEngineLogFilesCountedForToday: Integer;
 
 implementation
 
@@ -195,7 +196,7 @@ begin
           refreshCounterLabels(2);
           Form1.TimeCallsConnectedDateTimeLabel.Caption := 'No connected calls logged yet';
           //
-          SIPEngineLogFullPath := '';
+          SIPEngineLogFullPathCurrent := '';
         end;
     else
       begin
@@ -208,7 +209,7 @@ begin
         Form1.TimeEmailsConnectedDateTimeLabel.Caption := 'No connected emails logged yet';
         //
         EmailshWndStrListRecord.Clear;
-        SIPEngineLogFullPath := '';
+        SIPEngineLogFullPathCurrent := '';
       end;
   end;
 
@@ -227,6 +228,7 @@ begin
     Form1.TimeCallsConnectedDateTimeLabel.Caption:= Lst.Values['TimeCallsConnectedDateTimeLabel'];
     Form1.TimeEmailsConnectedDateTimeLabel.Caption:= Lst.Values['TimeEmailsConnectedDateTimeLabel'];
     AdditionalCallsConnectedCounterInt := StrToInt(Lst.Values['AdditionalCallsConnectedCounterInt']);
+    SIPEngineLogFullPathFromCESLSettings := Lst.Values['SIPEngineLogFullPathCurrent'];
     //
     CallsConnectedCounterInt := StrToInt(Form1.CallsConnectedCounterLabel.Caption);
     EmailsConnectedCounterInt := StrToInt(Form1.EmailsConnectedCounterLabel.Caption);
@@ -246,6 +248,7 @@ begin
     Lst.Values['TimeCallsConnectedDateTimeLabel']:= Form1.TimeCallsConnectedDateTimeLabel.Caption;
     Lst.Values['TimeEmailsConnectedDateTimeLabel']:= Form1.TimeEmailsConnectedDateTimeLabel.Caption;
     Lst.Values['AdditionalCallsConnectedCounterInt']:= IntToStr(AdditionalCallsConnectedCounterInt);
+    Lst.Values['SIPEngineLogFullPathCurrent']:= SIPEngineLogFullPathCurrent;
     Lst.SaveToFile(AFilename);
   finally
     Lst.Free;
@@ -366,6 +369,19 @@ begin
   FindClose(SR);
 end;
 
+function CountSIPEngineLogFilesForToday(): Integer;
+var
+  FilesList: TStringList;
+begin
+  FilesList := TStringList.Create;
+  try
+    FindFiles(FilesList, GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now), 'SIPEngine*.ininlog');
+    Result := FilesList.Count;
+  finally
+    FilesList.Free;
+  end;
+end;
+
 function CountOccurences(const SubText: string; const Text: string): Integer;
 begin
   if (SubText = '') OR (Text = '') OR (Pos(SubText, Text) = 0)
@@ -377,47 +393,40 @@ end;
 
 function RetrieveCallStatisticsFromSIPLogFile: boolean;
 var
-  FilesList: TStringList;
-  //
   i: Integer;
   s: AnsiString;
   Stream: TFileStream;
   //
   tempCallsConnectedCounterInt: integer;
 begin
-  if SIPEngineLogFullPath = ''
+  if SIPEngineLogFullPathCurrent = ''
     then
       begin
         Form1.CheckOnCallsTimer.Enabled := false;
-        FilesList := TStringList.Create;
-          try
-            FindFiles(FilesList, GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now), 'SIPEngine*.ininlog');
-            if FilesList.Count > 1
-              then
-                begin
-                  ShowMessage('CESL has detected that at least 2 different SIPEngine ININ Log files exist for today''s date.'
-                  +#13+
-                  'To ensure accurate counting of all future connected calls, please start ININ, then click OK and select the most recent SIPEngine ININ Log file in the next window.'
-                  +#13+#13+
-                  'Please note that you can also choose which SIPEngine ININ Log file to use at anytime by clicking on ''Calls connected:'' in CESL.');
-                  Form1.SIPEngineININLogFilePicker(true);
-                end
+          if CountSIPEngineLogFilesForToday > 1
+            then
+              begin
+                ShowMessage('CESL has detected that at least 2 different SIPEngine ININ Log files exist for today''s date.'
+                +#13+
+                'To ensure accurate counting of all future connected calls, please start ININ then click OK and select the most recent SIPEngine ININ Log file in the next window.');
+                SIPEngineLogFilesCountedForToday := CountSIPEngineLogFilesForToday;
+                Form1.SIPEngineININLogFilePicker();
+              end
             else
               begin
-                AdditionalCallsConnectedCounterInt := CallsConnectedCounterInt;
-                SIPEngineLogFullPath := GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now)+'\SIPEngine.ininlog';
+                SIPEngineLogFilesCountedForToday := CountSIPEngineLogFilesForToday;
+                SIPEngineLogFullPathCurrent := GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now)+'\SIPEngine.ininlog';
+                if SIPEngineLogFullPathCurrent <> SIPEngineLogFullPathFromCESLSettings
+                  then
+                    AdditionalCallsConnectedCounterInt := CallsConnectedCounterInt;
               end;
-          finally
-            FilesList.Free;
-          end;
-        //
         Form1.CheckOnCallsTimer.Enabled := true;
       end;
   //
-  if FileExists(SIPEngineLogFullPath)
+  if FileExists(SIPEngineLogFullPathCurrent) AND (CountSIPEngineLogFilesForToday = SIPEngineLogFilesCountedForToday)
     then
       begin
-        Stream := TFileStream.Create(SIPEngineLogFullPath, fmOpenRead or fmShareDenyNone);
+        Stream := TFileStream.Create(SIPEngineLogFullPathCurrent, fmOpenRead or fmShareDenyNone);
         try
           SetLength(s, Stream.Size);
           if Stream.Size > 0
@@ -440,21 +449,20 @@ begin
                 CallsConnectedCounterInt := tempCallsConnectedCounterInt + AdditionalCallsConnectedCounterInt;
                 refreshCounterLabels(2);
               end;
-      end;
+      end
+        else
+          SIPEngineLogFullPathCurrent := '';
+  //
   Result := true;
 end;
 
-procedure TForm1.SIPEngineININLogFilePicker(today: boolean);
+procedure TForm1.SIPEngineININLogFilePicker();
 var
   openDialog : topendialog;
 begin
   openDialog := TOpenDialog.Create(self);
 
-  if today = true
-    then
-      openDialog.InitialDir := GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now)
-    else
-      openDialog.InitialDir := GetEnvironmentVariable('TEMP')+'\inin_tracing\';
+  openDialog.InitialDir := GetEnvironmentVariable('TEMP')+'\inin_tracing\'+FormatDateTime('yyyy-mm-dd', now);
 
   openDialog.Options := [ofFileMustExist];
   openDialog.Filter := 'SIPEngine ININ Log file|SIPEngine*.ininlog';
@@ -463,8 +471,10 @@ begin
   if openDialog.Execute
     then
       begin
-        AdditionalCallsConnectedCounterInt := CallsConnectedCounterInt;
-        SIPEngineLogFullPath := openDialog.FileName;
+        SIPEngineLogFullPathCurrent := openDialog.FileName;
+        if (SIPEngineLogFullPathCurrent <> '') AND (SIPEngineLogFullPathCurrent <> SIPEngineLogFullPathFromCESLSettings)
+          then
+            AdditionalCallsConnectedCounterInt := CallsConnectedCounterInt;
         RetrieveCallStatisticsFromSIPLogFile;
       end;
 
@@ -487,12 +497,7 @@ procedure TForm1.AutoSaveTimerTimer(Sender: TObject);
 begin
   AutoSaveTimer.Enabled := false;
   //
-  SaveCurrentStatsValuesToFile(GetEnvironmentVariable('TEMP') + '\CESLv191.ini');
-end;
-
-procedure TForm1.CallsConnectedLabelClick(Sender: TObject);
-begin
-  SIPEngineININLogFilePicker(false);
+  SaveCurrentStatsValuesToFile(GetEnvironmentVariable('TEMP') + '\CESLv192.ini');
 end;
 
 procedure TForm1.CallsManualAdjustmentPosLabelClick(Sender: TObject);
@@ -551,12 +556,16 @@ procedure TForm1.StartButtonClick(Sender: TObject);
 begin
   StartButton.Enabled := false;
   StopButton.Enabled := true;
-  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9.1 for ININ: ON';
+  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9.2 for ININ: ON';
   //
   CallsConnectedCounterLabel.Enabled := true;
   TimeCallsConnectedDateTimeLabel.Enabled := true;
   EmailsConnectedCounterLabel.Enabled := true;
   TimeEmailsConnectedDateTimeLabel.Enabled := true;
+  //
+  if (CallsConnectedCounterInt > 0) OR (EmailsConnectedCounterInt > 0)
+    then
+      ResetButton.Click;
   //
   CheckOnEmailsTimer.Enabled := true;
   CheckOnCallsTimer.Enabled := true;
@@ -576,7 +585,7 @@ begin
   //
   StopButton.Enabled := false;
   StartButton.Enabled := true;
-  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9.1 for ININ: OFF';
+  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9.2 for ININ: OFF';
 end;
 
 procedure TForm1.ResetButtonClick(Sender: TObject);
@@ -606,13 +615,15 @@ procedure TForm1.AboutCESLCheckBoxMouseUp(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: Integer);
 begin
   ControlsGroupBox.SetFocus;
-  ShowMessage('Calls&&Emails Statistics Logger v1.9.1 for ININ'
+  ShowMessage('Calls&&Emails Statistics Logger v1.9.2 for ININ'
               + #13+#13
               + 'By Clement Campagna, June/August 2017'
               + #13
               + 'https://clementcampagna.net'
               + #13+#13
               + 'Changelog:'
+              + #13
+              + 'v1.9.2 (13/08/2017)     : Improved handling of SIPEngine ININ Log files.'
               + #13
               + 'v1.9.1 (08/08/2017)     : Resetting calls now also reset the SIPEngine ININ Log filepath.'
               + #13
@@ -646,13 +657,14 @@ begin
   CallsConnectedCounterInt := 0;
   AdditionalCallsConnectedCounterInt := 0;
   EmailsConnectedCounterInt := 0;
-  SIPEngineLogFullPath := '';
+  SIPEngineLogFilesCountedForToday := 0;
+  SIPEngineLogFullPathCurrent := '';
   //
-  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9.1 for ININ: OFF';
+  StatusBar.SimpleText := 'Calls&&Emails Statistics Logger v1.9.2 for ININ: OFF';
   //
-  if FileExists(GetEnvironmentVariable('TEMP') + '\CESLv191.ini')
+  if FileExists(GetEnvironmentVariable('TEMP') + '\CESLv192.ini')
     then
-      LoadPreviousStatsValuesFromFile(GetEnvironmentVariable('TEMP') + '\CESLv191.ini');
+      LoadPreviousStatsValuesFromFile(GetEnvironmentVariable('TEMP') + '\CESLv192.ini');
 end;
 
 procedure TForm1.FormDblClick(Sender: TObject);
